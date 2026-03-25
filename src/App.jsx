@@ -184,7 +184,7 @@ export default function App() {
         </div>
 
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', background: theme.card, padding: '10px 20px', borderRadius: '20px', boxShadow: '0 5px 15px rgba(0,0,0,0.05)' }}>
-          <h1 style={{ fontSize: '16px', fontWeight: '800', margin: 0, color: theme.text }}>TI Checklist</h1>
+          <h1 style={{ fontSize: '16px', fontWeight: '800', margin: 0, color: theme.text }}>Checklist: Pós-Formatação</h1>
           <div style={{ display: 'flex', gap: '10px' }}>
             <button onClick={() => updateState({ darkMode: !darkMode })} style={{ background: theme.border, border: 'none', padding: '10px', borderRadius: '12px', cursor: 'pointer', transition: '0.3s' }}>{darkMode ? <Sun size={18} color="white" /> : <Moon size={18} />}</button>
             <button onClick={() => window.confirm("Limpar?") && (localStorage.clear() || window.location.reload())} style={{ background: '#ef444420', border: 'none', padding: '10px', borderRadius: '12px', cursor: 'pointer' }}><Trash2 size={18} color="#ef4444" /></button>
