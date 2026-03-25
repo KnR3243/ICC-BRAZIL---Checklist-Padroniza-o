@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { CheckCircle, Circle, Moon, Sun, Trash2, XCircle, Send, GripVertical } from 'lucide-react';
+import { CheckCircle, Circle, Moon, Sun, Trash2, XCircle, Send } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 
 const initialData = [
@@ -91,10 +91,9 @@ export default function App() {
   const gerarPDF = async () => {
     const total = Object.values(checkedItems).filter(Boolean).length;
     
-    // VALIDAÇÃO COM FEEDBACK VISUAL
     if (!patrimonio || !tecnico || !hasSigned || total < items.length) {
       setShowErrors(true);
-      setModal({ show: true, title: 'Checklist Incompleto', msg: 'Verifique os itens marcados em vermelho e a assinatura.', type: 'error' });
+      setModal({ show: true, title: 'Incompleto', msg: 'Verifique os itens em vermelho e a assinatura.', type: 'error' });
       return;
     }
 
@@ -113,9 +112,16 @@ export default function App() {
       y += 5.5;
     });
 
-    // CORREÇÃO DO BLOCO PRETO: Usar PNG em vez de JPEG
+    // POSICIONAMENTO DA ASSINATURA E DO TEXTO
     const sigData = canvasRef.current.toDataURL('image/png');
-    doc.addImage(sigData, 'PNG', 80, y + 5, 50, 15);
+    // Adiciona a imagem da assinatura
+    doc.addImage(sigData, 'PNG', 80, y + 2, 50, 15);
+    // Adiciona a linha de assinatura
+    doc.line(75, y + 18, 135, y + 18); 
+    // Adiciona o rótulo centralizado embaixo
+    doc.setFontSize(9);
+    doc.text('Assinatura do Técnico', 105, y + 23, { align: 'center' });
+
     const pdfBase64 = doc.output('datauristring');
 
     try {
@@ -125,7 +131,7 @@ export default function App() {
         body: JSON.stringify({ tecnico, patrimonio, pdfBase64, email })
       });
       if (!res.ok) throw new Error();
-      setModal({ show: true, title: 'Sucesso!', msg: 'E-mail enviado e checklist finalizado!', type: 'success' });
+      setModal({ show: true, title: 'Sucesso!', msg: 'E-mail enviado e PDF salvo!', type: 'success' });
       
       updateState({ patrimonio: '', checkedItems: {}, tecnico: '', email: '' });
       setHasSigned(false);
@@ -133,7 +139,7 @@ export default function App() {
       canvasRef.current.getContext('2d').clearRect(0,0,600,180);
       doc.save(`Checklist_${patrimonio}.pdf`);
     } catch (e) {
-      setModal({ show: true, title: 'Aviso', msg: 'PDF baixado. Erro no disparo do e-mail.', type: 'error' });
+      setModal({ show: true, title: 'Aviso', msg: 'PDF baixado. Envio de e-mail falhou.', type: 'error' });
       doc.save(`Checklist_${patrimonio}.pdf`);
     }
     setEnviando(false);
@@ -193,10 +199,8 @@ export default function App() {
                   display: 'flex', alignItems: 'center', borderRadius: '20px', 
                   border: `2px solid ${isChecked ? '#22c55e' : (isError ? '#ef4444' : theme.border)}`, 
                   background: isChecked ? (darkMode ? '#064e3b' : '#f0fff4') : theme.card, 
-                  transition: '0.2s',
-                  boxShadow: isError ? '0 0 10px rgba(239, 68, 68, 0.2)' : 'none'
+                  transition: '0.2s'
                 }}>
-                
                 <div onClick={() => updateState({ checkedItems: { ...checkedItems, [item.id]: !isChecked } })} style={{ display: 'flex', alignItems: 'center', flex: 1, cursor: 'pointer', padding: '20px' }}>
                   <div style={{ paddingRight: '20px' }}>{isChecked ? <CheckCircle color="#22c55e" size={34} /> : <Circle color={isError ? "#ef4444" : "#94a3b8"} size={34} />}</div>
                   <div>
