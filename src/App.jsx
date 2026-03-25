@@ -49,6 +49,7 @@ export default function App() {
   const { items, patrimonio, tecnico, email, checkedItems, darkMode } = state;
   const [enviando, setEnviando] = useState(false);
   const [hasSigned, setHasSigned] = useState(false);
+  const [showErrors, setShowErrors] = useState(false);
   const [modal, setModal] = useState({ show: false, title: '', msg: '', type: 'error' });
   const canvasRef = useRef(null);
 
@@ -89,8 +90,11 @@ export default function App() {
 
   const gerarPDF = async () => {
     const total = Object.values(checkedItems).filter(Boolean).length;
+    
+    // VALIDAÇÃO COM FEEDBACK VISUAL
     if (!patrimonio || !tecnico || !hasSigned || total < items.length) {
-      setModal({ show: true, title: 'Incompleto', msg: 'Assine e marque todos os 33 itens.', type: 'error' });
+      setShowErrors(true);
+      setModal({ show: true, title: 'Checklist Incompleto', msg: 'Verifique os itens marcados em vermelho e a assinatura.', type: 'error' });
       return;
     }
 
@@ -109,8 +113,9 @@ export default function App() {
       y += 5.5;
     });
 
-    const sigData = canvasRef.current.toDataURL('image/jpeg', 0.8);
-    doc.addImage(sigData, 'JPEG', 80, y + 5, 50, 15);
+    // CORREÇÃO DO BLOCO PRETO: Usar PNG em vez de JPEG
+    const sigData = canvasRef.current.toDataURL('image/png');
+    doc.addImage(sigData, 'PNG', 80, y + 5, 50, 15);
     const pdfBase64 = doc.output('datauristring');
 
     try {
@@ -120,14 +125,15 @@ export default function App() {
         body: JSON.stringify({ tecnico, patrimonio, pdfBase64, email })
       });
       if (!res.ok) throw new Error();
-      setModal({ show: true, title: 'Sucesso!', msg: 'E-mail enviado e PDF salvo!', type: 'success' });
+      setModal({ show: true, title: 'Sucesso!', msg: 'E-mail enviado e checklist finalizado!', type: 'success' });
       
       updateState({ patrimonio: '', checkedItems: {}, tecnico: '', email: '' });
       setHasSigned(false);
+      setShowErrors(false);
       canvasRef.current.getContext('2d').clearRect(0,0,600,180);
       doc.save(`Checklist_${patrimonio}.pdf`);
     } catch (e) {
-      setModal({ show: true, title: 'Aviso', msg: 'PDF baixado. O envio automático falhou.', type: 'error' });
+      setModal({ show: true, title: 'Aviso', msg: 'PDF baixado. Erro no disparo do e-mail.', type: 'error' });
       doc.save(`Checklist_${patrimonio}.pdf`);
     }
     setEnviando(false);
@@ -166,32 +172,44 @@ export default function App() {
 
         <div style={{ background: theme.card, padding: '20px', borderRadius: '25px', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '12px', transition: '0.3s ease' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: '12px' }}>
-            <select value={tecnico} onChange={(e) => handleTecnicoChange(e.target.value)} style={{ padding: '15px', borderRadius: '15px', border: '2px solid ' + theme.border, background: theme.card, color: theme.text, fontWeight: '800', fontSize: '16px' }}>
+            <select value={tecnico} onChange={(e) => handleTecnicoChange(e.target.value)} 
+                    style={{ padding: '15px', borderRadius: '15px', border: '2px solid ' + (showErrors && !tecnico ? '#ef4444' : theme.border), background: theme.card, color: theme.text, fontWeight: '800', fontSize: '16px' }}>
               <option value="">TÉCNICO</option><option value="Odair">ODAIR</option><option value="Kauan">KAUAN</option>
             </select>
             <input value={email} readOnly placeholder="E-MAIL" style={{ padding: '15px', borderRadius: '15px', border: '2px solid ' + theme.border, background: darkMode ? '#0f172a' : '#f8fafc', color: '#94a3b8', fontSize: '15px', fontWeight: '800' }} />
           </div>
-          <input placeholder="PATRIMÔNIO (EX: ICC-001)" value={patrimonio} onChange={(e) => updateState({ patrimonio: e.target.value.toUpperCase() })} style={{ padding: '15px', borderRadius: '15px', border: '2px solid ' + theme.border, background: theme.card, color: theme.text, fontSize: '18px', fontWeight: '800', width: '100%', boxSizing: 'border-box' }} />
+          <input placeholder="PATRIMÔNIO (EX: ICC-001)" value={patrimonio} onChange={(e) => updateState({ patrimonio: e.target.value.toUpperCase() })} 
+                 style={{ padding: '15px', borderRadius: '15px', border: '2px solid ' + (showErrors && !patrimonio ? '#ef4444' : theme.border), background: theme.card, color: theme.text, fontSize: '18px', fontWeight: '800', width: '100%', boxSizing: 'border-box' }} />
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {items.map((item) => (
-            <div key={item.id} className="checklist-box"
-              style={{ display: 'flex', alignItems: 'center', borderRadius: '20px', border: '2px solid ' + (checkedItems[item.id] ? '#22c55e' : theme.border), background: checkedItems[item.id] ? (darkMode ? '#064e3b' : '#f0fff4') : theme.card, transition: '0.2s' }}>
-              
-              <div onClick={() => updateState({ checkedItems: { ...checkedItems, [item.id]: !checkedItems[item.id] } })} style={{ display: 'flex', alignItems: 'center', flex: 1, cursor: 'pointer', padding: '20px' }}>
-                <div style={{ paddingRight: '20px' }}>{checkedItems[item.id] ? <CheckCircle color="#22c55e" size={34} /> : <Circle color="#94a3b8" size={34} />}</div>
-                <div>
-                  <div style={{ fontSize: '15px', fontWeight: '800', color: checkedItems[item.id] ? (darkMode ? '#fff' : '#166534') : theme.text }}>{item.task}</div>
-                  {/* AJUSTE AQUI: Adicionado color: theme.text para não ficar preto no modo escuro */}
-                  <div style={{ fontSize: '10px', fontWeight: '900', opacity: 0.5, textTransform: 'uppercase', color: theme.text }}>{item.cat}</div>
+          {items.map((item) => {
+            const isChecked = checkedItems[item.id];
+            const isError = showErrors && !isChecked;
+
+            return (
+              <div key={item.id} className={`checklist-box ${isError ? 'error-shake' : ''}`}
+                style={{ 
+                  display: 'flex', alignItems: 'center', borderRadius: '20px', 
+                  border: `2px solid ${isChecked ? '#22c55e' : (isError ? '#ef4444' : theme.border)}`, 
+                  background: isChecked ? (darkMode ? '#064e3b' : '#f0fff4') : theme.card, 
+                  transition: '0.2s',
+                  boxShadow: isError ? '0 0 10px rgba(239, 68, 68, 0.2)' : 'none'
+                }}>
+                
+                <div onClick={() => updateState({ checkedItems: { ...checkedItems, [item.id]: !isChecked } })} style={{ display: 'flex', alignItems: 'center', flex: 1, cursor: 'pointer', padding: '20px' }}>
+                  <div style={{ paddingRight: '20px' }}>{isChecked ? <CheckCircle color="#22c55e" size={34} /> : <Circle color={isError ? "#ef4444" : "#94a3b8"} size={34} />}</div>
+                  <div>
+                    <div style={{ fontSize: '15px', fontWeight: '800', color: isChecked ? (darkMode ? '#fff' : '#166534') : theme.text }}>{item.task}</div>
+                    <div style={{ fontSize: '10px', fontWeight: '900', opacity: 0.5, textTransform: 'uppercase', color: theme.text }}>{item.cat}</div>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        <div style={{ marginTop: '40px', background: '#fff', padding: '25px', borderRadius: '30px', border: '2px solid ' + theme.border }}>
+        <div style={{ marginTop: '40px', background: '#fff', padding: '25px', borderRadius: '30px', border: '2px solid ' + (showErrors && !hasSigned ? '#ef4444' : theme.border) }}>
           <p style={{ color: '#000', fontSize: '11px', fontWeight: '900', marginBottom: '10px' }}>ASSINATURA OBRIGATÓRIA</p>
           <canvas ref={canvasRef} width={600} height={180} onMouseDown={startSign} onMouseMove={drawSign} onMouseUp={() => canvasRef.current.isDrawing = false} onTouchStart={startSign} onTouchMove={drawSign} onTouchEnd={() => canvasRef.current.isDrawing = false}
             style={{ width: '100%', height: '170px', background: '#fff', borderRadius: '15px', border: '1px solid #ddd', touchAction: 'none' }} />
@@ -210,6 +228,12 @@ export default function App() {
         @keyframes pop { 0% { transform: scale(0.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
         .btn-save:hover { transform: scale(1.05); background-color: #0284c7; }
         .btn-save:active { transform: scale(0.95); }
+        .error-shake { animation: shake 0.4s ease-in-out; }
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-5px); }
+          75% { transform: translateX(5px); }
+        }
       `}</style>
     </div>
   );

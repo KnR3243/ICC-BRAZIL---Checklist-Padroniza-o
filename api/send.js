@@ -21,7 +21,7 @@ export default async function handler(req, res) {
       from: '"Checklist TI ICC" <kauan.santos@iccbrazil.com.br>',
       // Envia para ambos os e-mails da TI
       to: 'kauan.santos@iccbrazil.com.br, odair.junior@iccbrazil.com.br',
-      subject: `✅ Checklist Finalizado - ${patrimonio}`,
+      subject: `Checklist: Pós-Formatação - ${patrimonio}`,
       text: `Olá, segue em anexo o checklist da máquina ${patrimonio} realizado pelo técnico ${tecnico}.`,
       attachments: [{
         filename: `Checklist_${patrimonio}.pdf`,
