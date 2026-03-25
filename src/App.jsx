@@ -38,7 +38,7 @@ const initialData = [
   { id: 33, task: "Ping - 192.168.10.10 (File)", cat: "Rede" },
 ];
 
-const STORAGE_KEY = 'checklist_icc_classic_stable_v1';
+const STORAGE_KEY = 'checklist_icc_vFinal_Pro';
 
 export default function App() {
   const [state, setState] = useState(() => {
@@ -65,17 +65,25 @@ export default function App() {
     updateState({ tecnico: val, email: mail });
   };
 
+  const handleResetChecklist = () => {
+    if (window.confirm("Deseja limpar todos os dados?")) {
+      updateState({ patrimonio: '', tecnico: '', email: '', checkedItems: {} });
+      setHasSigned(false);
+      setShowErrors(false);
+      if (canvasRef.current) canvasRef.current.getContext('2d').clearRect(0, 0, 600, 180);
+    }
+  };
+
   const gerarPDF = async () => {
     let motivos = [];
     if (!tecnico) motivos.push("selecionar o técnico");
     if (!patrimonio) motivos.push("informar o patrimônio");
-    if (completedCount < items.length) motivos.push(`marcar ${items.length - completedCount} itens`);
+    if (completedCount < items.length) motivos.push(`marcar os itens restantes`);
     if (!hasSigned) motivos.push("assinar o documento");
 
     if (motivos.length > 0) {
       setShowErrors(true);
-      const msgFinal = "Para finalizar, você precisa: " + motivos.join(", ") + ".";
-      setModal({ show: true, title: 'Incompleto', msg: msgFinal, type: 'error' });
+      setModal({ show: true, title: 'Incompleto', msg: "Para finalizar, você precisa: " + motivos.join(", ") + ".", type: 'error' });
       return;
     }
 
@@ -92,7 +100,7 @@ export default function App() {
           canvas.width = img.width; canvas.height = img.height;
           ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(img, 0, 0);
-          doc.addImage(canvas.toDataURL('image/jpeg', 1.0), 'JPEG', 15, 8, 45, 18); 
+          doc.addImage(canvas.toDataURL('image/jpeg', 1.0), 'JPEG', 15, 10, 45, 18); 
           resolve();
         };
         img.onerror = () => resolve();
@@ -100,15 +108,22 @@ export default function App() {
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(16);
-      doc.text('CHECKLIST PÓS FORMATAÇÃO - TI ICC', 130, 20, { align: 'center' });
-      doc.setFontSize(10);
-      doc.text(`Técnico: ${tecnico} | Patrimônio: ${patrimonio}`, 15, 35);
-      doc.text(`Data: ${new Date().toLocaleString()}`, 15, 40);
-      
-      let y = 50;
-      doc.setFontSize(8);
+      doc.text('CHECKLIST PÓS FORMATAÇÃO - TI ICC', 105, 40, { align: 'center' });
+      doc.setFontSize(11);
+      doc.text(`Técnico: ${tecnico} | Patrimônio: ${patrimonio}`, 105, 48, { align: 'center' });
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Gerado em: ${new Date().toLocaleString()}`, 105, 54, { align: 'center' });
+      doc.setDrawColor(200, 200, 200);
+      doc.line(20, 58, 190, 58);
+
+      let y = 65;
+      doc.setFontSize(8.5);
       items.forEach(i => {
-        doc.text(`[X] ${i.cat.toUpperCase()}: ${i.task}`, 15, y);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`[X] ${i.cat.toUpperCase()}:`, 20, y);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`${i.task}`, 55, y);
         y += 5.5;
       });
 
@@ -118,15 +133,23 @@ export default function App() {
       const sigCtx = finalSigCanvas.getContext('2d');
       sigCtx.fillStyle = '#FFFFFF'; sigCtx.fillRect(0, 0, finalSigCanvas.width, finalSigCanvas.height);
       sigCtx.drawImage(sigCanvas, 0, 0);
-      doc.addImage(finalSigCanvas.toDataURL('image/jpeg', 1.0), 'JPEG', 80, y + 5, 50, 15);
-      doc.line(75, y + 21, 135, y + 21); 
-      doc.text('Assinatura do Técnico', 105, y + 26, { align: 'center' });
+      doc.addImage(finalSigCanvas.toDataURL('image/jpeg', 1.0), 'JPEG', 80, y + 8, 50, 15);
+      doc.line(75, y + 24, 135, y + 24); 
+      doc.text('Assinatura do Técnico', 105, y + 29, { align: 'center' });
 
       const pdfBase64 = doc.output('datauristring');
       await fetch('/api/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tecnico, patrimonio, pdfBase64, email }) });
+      
       setModal({ show: true, title: 'Sucesso!', msg: 'Enviado com sucesso!', type: 'success' });
+
+      // Limpeza automática (exceto tema)
+      updateState({ patrimonio: '', tecnico: '', email: '', checkedItems: {} });
+      setHasSigned(false);
+      setShowErrors(false);
+      if (canvasRef.current) canvasRef.current.getContext('2d').clearRect(0, 0, 600, 180);
+
     } catch (e) {
-      setModal({ show: true, title: 'Salvo', msg: 'PDF Gerado com sucesso.', type: 'success' });
+      setModal({ show: true, title: 'Finalizado', msg: 'PDF baixado.', type: 'success' });
     } finally {
       doc.save(`Checklist_${patrimonio}.pdf`);
       setEnviando(false);
@@ -145,12 +168,12 @@ export default function App() {
     <div style={{ backgroundColor: theme.bg, minHeight: '100vh', padding: '15px', paddingBottom: '140px', display: 'flex', justifyContent: 'center', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       
       {modal.show && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)' }}>
           <div className="modal-pop" style={{ background: theme.card, padding: '40px', borderRadius: '30px', textAlign: 'center', maxWidth: '450px', border: `1px solid ${theme.border}` }}>
             {modal.type === 'error' ? <XCircle size={70} color="#ef4444" /> : <CheckCircle size={70} color="#22c55e" />}
             <h2 style={{ fontWeight: '800', marginTop: '20px', color: theme.text }}>{modal.title}</h2>
-            <p style={{ color: '#94a3b8', fontSize: '14px', marginTop: '10px', lineHeight: '1.5' }}>{modal.msg}</p>
-            <button onClick={() => setModal({ ...modal, show: false })} style={{ background: theme.accent, color: '#fff', border: 'none', padding: '15px 40px', borderRadius: '15px', fontWeight: '800', marginTop: '25px', cursor: 'pointer' }}>OK</button>
+            <p style={{ color: '#94a3b8', fontSize: '14px', marginTop: '10px' }}>{modal.msg}</p>
+            <button onClick={() => setModal({ ...modal, show: false })} className="btn-invert-accent" style={{ background: theme.accent, color: '#fff', border: `2px solid ${theme.accent}`, padding: '15px 40px', borderRadius: '15px', fontWeight: '800', marginTop: '25px', cursor: 'pointer' }}>OK</button>
           </div>
         </div>
       )}
@@ -163,12 +186,16 @@ export default function App() {
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', background: theme.card, padding: '10px 20px', borderRadius: '20px', border: `1px solid ${theme.border}` }}>
           <h1 style={{ fontSize: '16px', fontWeight: '800', color: theme.text, margin: 0 }}>Checklist: Pós-Formatação</h1>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={() => updateState({ darkMode: !darkMode })} style={{ background: theme.bg, border: `1px solid ${theme.border}`, padding: '10px', borderRadius: '12px', cursor: 'pointer' }}>{darkMode ? <Sun size={18} color="white" /> : <Moon size={18} />}</button>
-            <button onClick={() => window.confirm("Limpar?") && (localStorage.clear() || window.location.reload())} style={{ background: '#ef444420', border: 'none', padding: '10px', borderRadius: '12px', cursor: 'pointer' }}><Trash2 size={18} color="#ef4444" /></button>
+            <button onClick={() => updateState({ darkMode: !darkMode })} className="btn-theme-toggle" style={{ background: theme.bg, border: `1px solid ${theme.border}`, padding: '10px', borderRadius: '12px', cursor: 'pointer', color: theme.text }}>
+              {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+            <button onClick={handleResetChecklist} className="btn-invert-red" style={{ background: '#ef444420', color: '#ef4444', border: '1px solid transparent', padding: '10px', borderRadius: '12px', cursor: 'pointer' }}>
+              <Trash2 size={18} />
+            </button>
           </div>
         </header>
 
-        {/* INPUTS CARDS */}
+        {/* INPUTS */}
         <div className={showErrors && (!patrimonio || !tecnico) ? 'error-shake' : ''} style={{ background: theme.card, padding: '20px', borderRadius: '25px', marginBottom: '15px', border: `1px solid ${showErrors && (!patrimonio || !tecnico) ? '#ef4444' : theme.border}` }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: '12px', marginBottom: '12px' }}>
             <select value={tecnico} onChange={(e) => handleTecnicoChange(e.target.value)} style={{ padding: '15px', borderRadius: '15px', border: '1px solid ' + theme.border, background: theme.bg, color: theme.text, fontWeight: '800' }}>
@@ -176,10 +203,10 @@ export default function App() {
             </select>
             <input value={email} readOnly placeholder="E-MAIL" style={{ padding: '15px', borderRadius: '15px', border: '1px solid ' + theme.border, background: theme.bg, color: '#94a3b8', fontWeight: '800' }} />
           </div>
-          <input placeholder="PATRIMÔNIO (EX: ICC-001)" value={patrimonio} onChange={(e) => updateState({ patrimonio: e.target.value.toUpperCase() })} style={{ padding: '15px', borderRadius: '15px', border: '1px solid ' + theme.border, background: theme.bg, color: theme.text, fontWeight: '800', width: '100%', boxSizing: 'border-box' }} />
+          <input placeholder="PATRIMÔNIO (EX: MA001234)" value={patrimonio} onChange={(e) => updateState({ patrimonio: e.target.value.toUpperCase() })} style={{ padding: '15px', borderRadius: '15px', border: '1px solid ' + theme.border, background: theme.bg, color: theme.text, fontWeight: '800', width: '100%', boxSizing: 'border-box' }} />
         </div>
 
-        {/* BARRA DE PROGRESSO */}
+        {/* PROGRESSO */}
         <div style={{ background: theme.card, padding: '15px 20px', borderRadius: '20px', marginBottom: '15px', border: `1px solid ${theme.border}` }}>
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
             <span style={{ fontSize: '15px', fontWeight: '900', color: completedCount === items.length ? '#22c55e' : theme.accent }}>{completedCount} / {items.length}</span>
@@ -189,13 +216,13 @@ export default function App() {
           </div>
         </div>
 
-        {/* LISTA DE CARDS */}
+        {/* LISTA */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {items.map((item) => {
             const isChecked = checkedItems[item.id];
             const isError = showErrors && !isChecked;
             return (
-              <div key={item.id} className={isError ? 'error-shake' : ''} onClick={() => updateState({ checkedItems: { ...checkedItems, [item.id]: !isChecked } })}
+              <div key={item.id} className={`checklist-card ${isError ? 'error-shake' : ''}`} onClick={() => updateState({ checkedItems: { ...checkedItems, [item.id]: !isChecked } })}
                 style={{ display: 'flex', alignItems: 'center', padding: '20px', borderRadius: '20px', border: `2px solid ${isChecked ? '#22c55e' : (isError ? '#ef4444' : theme.border)}`, background: theme.card, cursor: 'pointer' }}>
                 <div style={{ marginRight: '20px' }}>{isChecked ? <CheckCircle color="#22c55e" size={32} /> : <Circle color={isError ? "#ef4444" : "#94a3b8"} size={32} />}</div>
                 <div>
@@ -210,22 +237,47 @@ export default function App() {
         {/* ASSINATURA */}
         <div className={showErrors && !hasSigned ? 'error-shake' : ''} style={{ marginTop: '20px', background: '#fff', padding: '25px', borderRadius: '30px', border: `2px solid ${showErrors && !hasSigned ? '#ef4444' : '#eee'}` }}>
           <p style={{ color: '#000', fontSize: '11px', fontWeight: '900', marginBottom: '10px' }}>ASSINATURA OBRIGATÓRIA</p>
-          <canvas ref={canvasRef} width={600} height={160} onMouseDown={(e) => { const rect = canvasRef.current.getBoundingClientRect(); const ctx = canvasRef.current.getContext('2d'); ctx.lineWidth=2; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(e.clientX-rect.left, e.clientY-rect.top); canvasRef.current.isDrawing=true; setHasSigned(true); }} onMouseMove={(e) => { if(!canvasRef.current.isDrawing) return; const rect = canvasRef.current.getBoundingClientRect(); canvasRef.current.getContext('2d').lineTo(e.clientX-rect.left, e.clientY-rect.top); canvasRef.current.getContext('2d').stroke(); }} onMouseUp={() => canvasRef.current.isDrawing=false} onTouchStart={(e) => { const rect = canvasRef.current.getBoundingClientRect(); const ctx = canvasRef.current.getContext('2d'); ctx.lineWidth=2; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(e.touches[0].clientX-rect.left, e.touches[0].clientY-rect.top); canvasRef.current.isDrawing=true; setHasSigned(true); }} onTouchMove={(e) => { if(!canvasRef.current.isDrawing) return; e.preventDefault(); const rect = canvasRef.current.getBoundingClientRect(); canvasRef.current.getContext('2d').lineTo(e.touches[0].clientX-rect.left, e.touches[0].clientY-rect.top); canvasRef.current.getContext('2d').stroke(); }} onTouchEnd={() => canvasRef.current.isDrawing=false}
+          <canvas ref={canvasRef} width={600} height={160} 
+            onMouseDown={(e) => { const rect = canvasRef.current.getBoundingClientRect(); const ctx = canvasRef.current.getContext('2d'); ctx.lineWidth=2; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(e.clientX-rect.left, e.clientY-rect.top); canvasRef.current.isDrawing=true; setHasSigned(true); }} 
+            onMouseMove={(e) => { if(!canvasRef.current.isDrawing) return; const rect = canvasRef.current.getBoundingClientRect(); canvasRef.current.getContext('2d').lineTo(e.clientX-rect.left, e.clientY-rect.top); canvasRef.current.getContext('2d').stroke(); }} 
+            onMouseUp={() => canvasRef.current.isDrawing=false} 
+            onTouchStart={(e) => { const rect = canvasRef.current.getBoundingClientRect(); const ctx = canvasRef.current.getContext('2d'); ctx.lineWidth=2; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(e.touches[0].clientX-rect.left, e.touches[0].clientY-rect.top); canvasRef.current.isDrawing=true; setHasSigned(true); }} 
+            onTouchMove={(e) => { if(!canvasRef.current.isDrawing) return; e.preventDefault(); const rect = canvasRef.current.getBoundingClientRect(); canvasRef.current.getContext('2d').lineTo(e.touches[0].clientX-rect.left, e.touches[0].clientY-rect.top); canvasRef.current.getContext('2d').stroke(); }} 
+            onTouchEnd={() => canvasRef.current.isDrawing=false}
             style={{ width: '100%', height: '160px', background: '#fff', borderRadius: '15px', border: '1px solid #ddd', touchAction: 'none' }} />
-          <button onClick={() => { canvasRef.current.getContext('2d').clearRect(0,0,600,180); setHasSigned(false); }} style={{ color: '#ef4444', border: 'none', background: 'none', fontWeight: '800', fontSize: '12px', cursor: 'pointer', marginTop: '10px' }}>LIMPAR</button>
+          <button onClick={() => { canvasRef.current.getContext('2d').clearRect(0,0,600,180); setHasSigned(false); }} className="btn-invert-red-text" style={{ color: '#ef4444', border: 'none', background: 'none', fontWeight: '800', fontSize: '12px', cursor: 'pointer', marginTop: '10px' }}>LIMPAR QUADRO</button>
         </div>
       </div>
 
-      <button onClick={gerarPDF} disabled={enviando} style={{ position: 'fixed', bottom: '30px', right: '30px', background: completedCount === items.length ? '#22c55e' : '#0ea5e9', color: '#fff', border: 'none', padding: '20px 45px', borderRadius: '60px', fontWeight: '900', cursor: 'pointer', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', zIndex: 1000, display: 'flex', alignItems: 'center', gap: '12px', fontSize: '17px' }}>
+      <button onClick={gerarPDF} disabled={enviando} className="btn-finalizar" style={{ position: 'fixed', bottom: '30px', right: '30px', background: '#0ea5e9', color: '#fff', border: `2px solid #0ea5e9`, padding: '20px 45px', borderRadius: '60px', fontWeight: '900', cursor: 'pointer', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', zIndex: 1000, display: 'flex', alignItems: 'center', gap: '12px', fontSize: '17px' }}>
         {enviando ? 'PROCESSANDO...' : <><Send size={24} /> FINALIZAR</>}
       </button>
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800;900&display=swap');
+        
+        * { transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease; }
+        
         body { margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+
+        .checklist-card:hover { transform: translateY(-2px) scale(1.01); box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+
+        /* Botão Finalizar Invertido no Hover */
+        .btn-finalizar:hover { background: #fff !important; color: #0ea5e9 !important; transform: scale(1.05); }
+
+        /* Botão Lixeira Invertido no Hover */
+        .btn-invert-red:hover { background: #ef4444 !important; color: #fff !important; }
+
+        /* Botão Tema Invertido no Hover */
+        .btn-theme-toggle:hover { background: ${theme.text} !important; color: ${theme.card} !important; }
+
+        /* Botão OK no Modal */
+        .btn-invert-accent:hover { background: #fff !important; color: #0ea5e9 !important; }
+
         .error-shake { animation: shake 0.4s ease-in-out; }
         @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
-        .modal-pop { animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        
+        .modal-pop { animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         @keyframes pop { 0% { transform: scale(0.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
       `}</style>
     </div>
